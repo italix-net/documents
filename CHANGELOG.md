@@ -3,6 +3,95 @@
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning policy: `VERSIONING.md` at the
 project root.
 
+## [0.7.0] — 2026-09-03
+
+### Added
+
+`PdfPageSplitter` (`Italix\Converters\Extractor`) and `PdfMerger` (`Italix\Converters\Merger`) —
+the first real drivers for the two new cardinalities `italix/converters` 0.4.0 adds, and exact
+mirrors of each other: `pdfseparate`/`pdfunite` (poppler-utils), the same shelling-out shape as
+`DoclingConverter` and `italix/media`'s `PdfPageToImageConverter`.
+
+`PdfPageSplitter::extract()` with `$boundaries = null` returns every page as its own single-page
+PDF. An explicit boundary is a page *range* `[first, last]`, not a single page number — `[3, 3]` is
+one page, `[2, 5]` is four pages combined into one piece — so both "every page separately" and
+"these three specific ranges" are the same shape. A multi-page boundary is produced by re-combining
+the already-split pages via `pdfunite` internally (`PdfMerger`'s own mechanism, kept self-contained
+here rather than depending on the sibling class for what is really an implementation detail of
+`extract()`).
+
+**A real bug, found only by running this against a real PDF, not by reading the code**: the first
+version of the `pdfunite` shell-out reversed its argument order —
+`pdfunite <output> <input1> <input2>` instead of `pdfunite <input1> <input2> <output>` (output
+last). It failed with `I/O Error: Couldn't open file 'range-2-3.pdf'` / `Could not merge damaged
+documents` — an error message that reads like a corrupt-input complaint, not an argument-order one,
+which is exactly why it needed to actually run against real files rather than being caught by
+inspection. The same reversed-argument mistake was copy-pasted into `PdfMerger::merge()` itself and
+fixed there too, from the same discovery.
+
+`tests/PdfPageSplitterTest.php` (13 assertions) and `tests/PdfMergerTest.php` (10 assertions), both
+against the real binaries, both checking actual page counts via `pdfinfo` rather than trusting
+non-empty bytes — that distinction is what caught the argument-order bug in the first place: a
+naive "the output is non-empty" assertion would have passed on the corrupted single-input file
+`pdfunite` produced before quitting.
+
+## [0.6.0] — 2026-09-03
+
+### Added
+
+`DoclingConverter` — `pdf`/`docx`/`pptx` to Markdown, via [Docling](https://github.com/docling-project/docling)
+shelled out to, the same way `italix/media`'s `PdfPageToImageConverter` shells out to Ghostscript.
+Closes the gap the rest of this library's converters leave open: PDF/DOCX/PPTX have only ever been
+conversion *targets* here (`HtmlToPdfConverter`), never sources feeding INTO Markdown — the missing
+half of turning an arbitrary uploaded document into something `Rendered::text()` can chunk and embed
+(see `italix/vectors`' `examples/documents-connector.php`, the reason this was worth building now).
+
+Not a lightweight addition: `docling[standard]` pulls in a real ML stack (torch, torchvision,
+transformers, its own layout/table/OCR models) — a 6.2GB virtualenv, verified by installing it fresh
+in an isolated venv, not assumed from its listed dependencies. `is_available()` only checks that the
+configured binary is on `PATH`; it deliberately does not try to detect whether that binary's model
+cache is warm, because a fresh install passes that check yet still blocks on its first real call —
+measured directly at 42.8s and ~530MB pulled from huggingface.co and modelscope.cn together, on a
+trivial one-paragraph PDF. A deployment that wants predictable first-request latency needs to
+pre-warm that cache itself.
+
+**OCR is on by default even for born-digital PDFs with a real text layer, and dominates wall-clock
+time** — measured against two real Fabrick API-docs PDFs, not synthetic fixtures: a 5-page PDF with a
+handful of embedded screenshots took 400.35s end-to-end, CPU-only (no GPU on the box this was measured
+on). The new `DoclingConverter::OPTION_OCR` generic option (`ConversionOptions::none()->with(...,
+false)`) skips it — the one lever that turns minutes into seconds for a PDF that already has real
+text. Quality on that same real document, checked by reading the actual output: headings, paragraphs
+and a genuine table all survived correctly; two lines had visibly dropped characters traced to that
+specific PDF's own font encoding, not reproduced on the synthetic test fixture — a reminder to
+spot-check real sources rather than assume uniform quality. Embedded images come through as inline
+base64 data URIs by default, worth stripping before chunking.
+
+`pairs()` deliberately covers only the three formats actually run against real files here — Docling
+claims support for a much longer list (xlsx, html, images, odt/odp/ods, …) that this class does not
+yet declare, on the same "verified before claimed" basis as everything else in this changelog.
+
+**Embedded images turned out to be the bigger cost, on real documents — worse than OCR.** Discovered
+running a real 23-page Fabrick onboarding guide (45 UI screenshots) end to end: 1010.94s and an
+**11.3MB** Markdown file, 99.97% of which (11,281,501 of 11,285,187 bytes) was base64 image data
+against under 4KB of real prose. `image-export-mode`'s default (`embedded`) is doing exactly what it
+says; it is simply the wrong default for feeding a chunker. `DoclingConverter::OPTION_IMAGE_MODE`
+exposes Docling's own toggle the same way `OPTION_OCR` does — `placeholder` mode drops the bytes and
+just marks where an image was. Left at Docling's own default unless a caller asks otherwise, same
+"never silently loosen a driver's default" reasoning as OCR. `referenced` mode is accepted but
+documented as not fully usable through this driver: `convert()` returns bytes only, and the temp
+output directory Docling would write the referenced image files into is deleted in `finally` before
+`convert()` returns — a caller that genuinely needs separate image files needs this driver extended to
+return them, not just told the option "worked".
+
+`tests/DoclingConverterTest.php` — 17 assertions against the real driver (a real dompdf-built PDF in,
+real Markdown out, a genuinely invalid input throwing `ConversionException` with Docling's own output
+attached, registered into a real `ConverterSet`, and a small-scale reproduction of the image-bloat
+finding above — proved empirically, not merely asserted: a flat, featureless test image was silently
+discarded by Docling's own layout model as noise, so the fixture needed real drawn content before the
+embedded-vs-placeholder assertions meant anything), run with OCR explicitly disabled so the suite
+stays fast; skips loudly via `IX_DOCLING_BINARY` when Docling is not installed, the same pattern
+`italix/vectors`' `PgVectorStoreTest.php` uses for an optional real backend.
+
 ## [0.5.0] — 2026-08-28
 
 ### Changed — BREAKING
