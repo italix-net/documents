@@ -105,7 +105,7 @@ section('OPTION_IMAGE_MODE — embedded images are the real cost on a screenshot
 // A real-sized picture (GD, not a 10x10 dot dompdf might not even lay out as
 // a Picture item) — needed to actually exercise Docling's image handling,
 // not just prove the flag doesn't crash. Verified directly against a real
-// 23-page Fabrick guide first: default (embedded) mode alone turned 45
+// 23-page onboarding guide first: default (embedded) mode alone turned 45
 // screenshots into an 11.3MB Markdown file, 99.97% base64 image bytes
 // against under 4KB of real prose — this is the fast, small-scale version
 // of that same finding.

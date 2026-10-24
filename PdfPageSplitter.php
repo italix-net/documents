@@ -88,14 +88,14 @@ final class PdfPageSplitter implements Extractor
 
             $single_pages = [];
 
-            for ($page_n = 1; $page_n <= $pages_n; $page_n++) {
-                $page_path = $work_dir . "/page-{$page_n}.pdf";
+            for ($page_i = 1; $page_i <= $pages_n; $page_i++) {
+                $page_path = $work_dir . "/page-{$page_i}.pdf";
 
                 if (!is_file($page_path)) {
-                    throw new ConversionException("pdfseparate did not produce page {$page_n} of {$pages_n}.");
+                    throw new ConversionException("pdfseparate did not produce page {$page_i} of {$pages_n}.");
                 }
 
-                $single_pages[$page_n] = file_get_contents($page_path);
+                $single_pages[$page_i] = file_get_contents($page_path);
             }
 
             if ($boundaries === null) {
@@ -120,14 +120,14 @@ final class PdfPageSplitter implements Extractor
      */
     private function merge_range(array $single_pages, array $range, string $work_dir): ConvertedDocument
     {
-        [$first_n, $last_n] = $range;
+        [$first_i, $last_i] = $range;
 
-        if ($first_n === $last_n) {
-            if (!isset($single_pages[$first_n])) {
-                throw new ConversionException("Requested page {$first_n} does not exist in this document.");
+        if ($first_i === $last_i) {
+            if (!isset($single_pages[$first_i])) {
+                throw new ConversionException("Requested page {$first_i} does not exist in this document.");
             }
 
-            return new ConvertedDocument($single_pages[$first_n], 'pdf', 'application/pdf');
+            return new ConvertedDocument($single_pages[$first_i], 'pdf', 'application/pdf');
         }
 
         // A multi-page boundary needs pdfunite, not pdfseparate — PdfMerger
@@ -143,15 +143,15 @@ final class PdfPageSplitter implements Extractor
 
         $part_paths = [];
 
-        for ($page_n = $first_n; $page_n <= $last_n; $page_n++) {
-            if (!isset($single_pages[$page_n])) {
-                throw new ConversionException("Requested range [{$first_n}, {$last_n}] includes page {$page_n}, which does not exist.");
+        for ($page_i = $first_i; $page_i <= $last_i; $page_i++) {
+            if (!isset($single_pages[$page_i])) {
+                throw new ConversionException("Requested range [{$first_i}, {$last_i}] includes page {$page_i}, which does not exist.");
             }
 
-            $part_paths[] = $work_dir . "/page-{$page_n}.pdf";
+            $part_paths[] = $work_dir . "/page-{$page_i}.pdf";
         }
 
-        $output_path = $work_dir . '/range-' . $first_n . '-' . $last_n . '.pdf';
+        $output_path = $work_dir . '/range-' . $first_i . '-' . $last_i . '.pdf';
 
         // pdfunite's own argument order is INPUTS... then OUTPUT last —
         // verified directly after getting this backwards on the first
@@ -171,7 +171,7 @@ final class PdfPageSplitter implements Extractor
 
         if ($exit_code !== 0 || !is_file($output_path)) {
             throw new ConversionException(
-                "pdfunite could not combine pages {$first_n}-{$last_n} (exit {$exit_code}).",
+                "pdfunite could not combine pages {$first_i}-{$last_i} (exit {$exit_code}).",
                 implode("\n", $output_lines)
             );
         }

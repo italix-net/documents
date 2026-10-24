@@ -48,7 +48,7 @@ use Italix\Converters\Converter;
  *
  * **OCR is on by default even for born-digital PDFs with a real text
  * layer**, and it dominates wall-clock time — verified directly, not
- * assumed, against two real Fabrick API-docs PDFs (not synthetic fixtures):
+ * assumed, against two real API-docs PDFs from a payment provider (not synthetic fixtures):
  * a 5-page PDF with a handful of embedded screenshots took 400.35s
  * end-to-end (CPU-only, `--num-threads 4`, this box has no GPU); the same
  * driver call with OCR disabled on a comparable one-paragraph, no-image
@@ -72,7 +72,7 @@ use Italix\Converters\Converter;
  * not assumed uniform.
  *
  * **Embedded images are the bigger cost on a screenshot-heavy document —
- * far more than OCR.** A real 23-page Fabrick onboarding guide (45 UI
+ * far more than OCR.** A real 23-page onboarding guide (45 UI
  * screenshots, walking a user through a form flow) converted to an
  * **11.3MB** Markdown file — of which 11,281,501 of 11,285,187 bytes
  * (99.97%) were base64 image data; the real prose was under 4KB. That is
@@ -163,8 +163,8 @@ final class DoclingConverter implements Converter
         string $to_extension_c,
         ConversionOptions $options
     ): ConvertedDocument {
-        $ocr_flag        = $options->get(self::OPTION_OCR, true) ? '' : '--no-ocr ';
-        $image_mode_c    = $options->get(self::OPTION_IMAGE_MODE);
+        $ocr_flag        = $options->get(self::OPTION_OCR, true, static::class) ? '' : '--no-ocr ';
+        $image_mode_c    = $options->get(self::OPTION_IMAGE_MODE, null, static::class);
         $image_mode_flag = $image_mode_c !== null ? '--image-export-mode ' . escapeshellarg($image_mode_c) . ' ' : '';
 
         $input_path  = sys_get_temp_dir() . '/ix-documents-docling-' . bin2hex(random_bytes(8)) . '.' . $from_extension_c;

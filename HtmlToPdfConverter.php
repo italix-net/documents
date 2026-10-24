@@ -68,7 +68,7 @@ final class HtmlToPdfConverter implements Converter
         string $to_extension_c,
         ConversionOptions $options
     ): ConvertedDocument {
-        $colorspace_c = $options->colorspace_code(ConversionOptions::COLORSPACE_RGB);
+        $colorspace_c = $options->colorspace_code(ConversionOptions::COLORSPACE_RGB, static::class);
 
         if ($colorspace_c !== ConversionOptions::COLORSPACE_RGB) {
             throw new UnsupportedOptionException(ConversionOptions::COLORSPACE, $colorspace_c, $this->describe());

@@ -264,8 +264,8 @@ test('JSON is accepted', $catalog->allows('application/json'));
 test('a page that quotes HTML is accepted', $catalog->allows('text/html'),
     'a short page demonstrating markup sniffs as text/html, and a docs library must hold it');
 test('a page that quotes XML is accepted', $catalog->allows('application/xml'));
-test('SVG is still refused', !$catalog->allows('image/svg+xml'),
-    'an image would reasonably be served as one, and then the render guarantee no longer covers it');
+test('SVG is accepted: stored, never served as it is', $catalog->allows('image/svg+xml'),
+    'published through its renderer, escaped; as an asset never copied into a site');
 
 [$lib, $tree_id] = $fresh('catalog');
 

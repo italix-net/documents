@@ -3,6 +3,282 @@
 Format: [Keep a Changelog](https://keepachangelog.com/). Versioning policy: `VERSIONING.md` at the
 project root.
 
+## [0.16.0] — 2026-10-24
+
+### Added
+
+- **Translations that know when they fell behind.** `TranslationLayout`, with `LanguageFiles` (one folder per
+  document, `{lang}.md`) and `LanguageFolders` (`{lang}/…`). A `Projection` given one records, on import, the
+  source version each translation was made from — the one the translator had on disk: the checked-out version,
+  or this import's when the source was edited too (sources go first) — and links every document to its language
+  and source (`Library::apply_layout()`). `Library::translations()` reports each translation `current`, `stale`,
+  `unknown` or `orphan`; `Library::set_translation()` links one by hand. The columns were there since 0.5
+  (`lang_c`, `translation_of_node_id`, `source_version_id`); nothing filled or read them through a working copy.
+- `TranslationsTest` (33); four mutations each caught.
+
+### Changed
+
+- `Projection::__construct()` takes an optional third argument, the layout. Without one, nothing changes.
+
+## [0.15.1] — 2026-10-24
+
+### Fixed
+
+- **`move()` on a folder moves what is inside it.** It updated the folder's own row only: its documents
+  kept their old paths, listed under a folder that no longer existed, while the new folder stayed empty.
+  Now every live node below it, at any depth, takes the new path, keeps its id and leaves its former
+  path as an alias, so `moved_href()`, `relink()` and `publish()` follow links into the moved folder.
+  One transaction. Also refused now: a folder moved inside itself, and a target under a document.
+- **`remove()` on a folder removes everything inside it.** Only its direct children were marked
+  deleted; their children stayed live under a deleted folder.
+- **`Projection::checkout()` deletes what the tree no longer has.** A file the previous checkout wrote,
+  moved or removed in the tree since, stayed on disk, and `status()` called it added, so the next
+  `import()` brought the document back at its old path, where it would also hide the alias. Such a file
+  is now deleted when it is still as checked out, with the folders it leaves empty; one edited since is
+  kept and still reported as added.
+- `FolderMoveTest` (25); each fix mutation-checked. The prefix match is also exact in PHP, because a MySQL
+  collation may compare `path_c` case-blind.
+
+## [0.15.0] — 2026-10-10
+
+### Added
+
+- **`MarkdownChunker` and `MarkdownChunk`** — Markdown into passages for retrieval: split on `##`, then on `###`,
+  paragraphs and sentences only for what is too long; never inside a fenced code block; short pieces folded into a
+  neighbour; a `code` stable across edits. Moved here from two applications that each held an identical copy; pure
+  string work, which is why it is not in `italix/rag` (whose `Chunk` keeps chunking out on purpose). New in the
+  move: sizes that cannot work are refused with `InvalidArgumentException`. `MarkdownChunkerTest` (52), every
+  rule mutation-checked; its last section chunks the sibling libraries' READMEs when they are installed alongside.
+
+## [0.14.0] — 2026-09-29
+
+### Added
+
+**Pages from any source, and documents from the web**, the half of the crawler's design that belongs here.
+
+- `SavedPage` holds a page as saved: URL, title, time, HTML, and the files it names locally.
+- `SingleFileImporter::import_page()` imports one, whatever saved it: `italix/crawler`, or SingleFile
+  through `read_page()`. `import()` is now `read_page()` then `import_page()`. A page without a
+  `manifest.json` gets one written, so two URLs are told apart the same way for every page.
+- `DocumentImporter` takes a PDF or an office file taken from the web:
+  - the original: `originals/<host>/<yyyy-mm>/<name>.<ext>`, with a manifest, packing with its site's
+    pages;
+  - its text: `texts/…/<name>.<ext>.md`, `source_version_id` pointing at the original, when the
+    converter given takes the type;
+  - otherwise the original alone, and `text_error` says why.
+- `PdfToTextConverter`: `pdf` → `txt` through poppler's `pdftotext`.
+
+### Fixed
+
+- **A save the store refused left an empty document behind.** `save()` created the document, then the
+  store refused its file (an old `.ppt`), and a document with no version stayed in the tree, where
+  `pack_folder()` counted it. A document created by a save that fails is now removed. Found by the
+  application's crawl test.
+- **`save()` reused `$path_c`** for a carried asset's blob path, so the file was stored with the
+  blob's name as its original name. The name is metadata only, so nothing wrong was visible; the
+  variable is now its own.
+
+### Changed
+
+Where both importers put things — host, month, slug, and `-2` for another URL — is one internal class,
+`WebPlace`. The error for a URL with no usable host now reads "No usable host in the URL".
+
+## [0.13.0] — 2026-09-27
+
+### Added
+
+**Web pages saved with SingleFile, and folders packed cold**.
+
+- `SingleFileImporter` turns a SingleFile self-extracting page (`.u.zip.html`), recognised by content,
+  into two documents:
+  - `texts/<host>/<yyyy-mm>/<slug>.md`: a header and the main content;
+  - `originals/<host>/<yyyy-mm>/<slug>.html`: a bundle, PNG and JPEG re-encoded as WebP when smaller
+    (through an injected converter, quality 90), every reference rewritten to match.
+
+  Importing the same file again writes nothing; another URL with the same slug goes to `-2`.
+- `HtmlToMarkdownConverter` (`html` → `md`): a page's main content as Markdown. It takes the
+  `<article>` with the most text, else `<main>`, else `<body>`, and drops interface lines.
+- `Library::pack_folder()` packs every version of every document under a folder, **the latest
+  included**, into one archive whose members are shared.
+
+Measured on nine pages of one site: 20.8 MB as saved, 5.8 MB in the store with the texts, once packed.
+
+### Changed
+
+- An archive is deleted only when no version refers to it, since `pack_folder()` shares them.
+- `save()` without `assets` on a bundle whose latest version is archived stores its assets again,
+  instead of copying rows that point at deleted blobs.
+- `suggested_catalog()` accepts `font/woff`, `font/woff2` and `image/avif`: stored, never served.
+- The internals of `pack()` are shared with `pack_folder()`; its behaviour is unchanged.
+
+## [0.12.0] — 2026-09-27
+
+### Changed
+
+**Large documents are packed sooner**.
+
+- `pack()` takes `large_bytes_n` (default 400 KB) and `large_min_old_versions_n` (default 2).
+- A document whose latest version — file plus assets — is **more than** 400 KB is packed from its third
+  version. Any other document is packed from its sixth, as before.
+- `'large_bytes_n' => null` restores 0.11.0's behaviour exactly.
+- Measured by the test: two old versions of a 500 KB page, 1000 KB loose, 375 KB archived.
+
+## [0.11.0] — 2026-09-26
+
+### Added
+
+**Bundles: a document and its `.assets/` folder** — kind C of the revision archive.
+
+- `save()` takes `'assets' => [name => bytes]`, the version's whole folder. `[]` means none; without
+  the key the latest version's assets are carried forward. Saving again with the same file and the same
+  assets returns the same version (`ix_doc_version.assets_sha256_c`). An unchanged image is one blob.
+- `assets($version_id)`, `read_asset($version_id, $name_c)`, and `checkout_version($version_id, $dir)`
+  for any version: kind A, B or C, loose or archived. `Asset` is the new value class, `ix_doc_asset` the
+  new table (`install()` adds both).
+- `move()` moves the folder with its file. `moved_href()` follows a file of a moved bundle's folder, so
+  `relink()` rewrites a Markdown page's links into its own folder and `publish()` follows them.
+- `Projection`:
+  - `checkout` writes the folder;
+  - `status` reports one change per bundle;
+  - `import` saves exactly the files now in the folder;
+  - a folder with no file beside it is `Change::ORPHAN_ASSETS`, reported, never imported or deleted.
+- `publish()` copies a bundle's images and PDFs beside the page (`Projection::PUBLISHED_ASSET_TYPES`)
+  and prunes them when they go. Never an HTML asset: that would be a stored blob served as live markup.
+- `pack()` puts each distinct asset in the archive once, as `assets/<blob>`. A loose blob is deleted only
+  when the latest version uses it neither as its file nor as an asset.
+
+### Changed
+
+- A name ending in `.assets` is reserved: `save()` and `move()` refuse a document under such a folder,
+  or called that. The working copy ignores a file with such a name.
+- `import()`'s report has an `orphan_assets` key.
+- `save()` writes the version, its assets and the new latest in one transaction, or inside the caller's.
+- `Library::suggested_catalog()` accepts SVG (`image/svg+xml`) — stored, never served. A drawing
+  published as a document is escaped like any page; as an asset `publish()` never copies it. Serving
+  SVG as an image is left to the web server's `Content-Security-Policy`.
+
+## [0.10.0] — 2026-09-26
+
+### Added
+
+**The revision archive, for single files and containers** — phase 3 of `FRAMEWORK-DOCUMENTS.md` §11.
+
+`Library::pack($tree_id, ['min_old_versions_n' => 5, 'dry_run' => false])` puts every version but the
+latest of each document with enough history into **one `tar.zst` per document**. A container — ODF,
+OOXML, EPUB, recognised by its content — goes in **unpacked**, its entries ordered by name and then by
+version so equal content sits side by side whatever the document's size; anything else goes in whole.
+The latest version is never touched. `read_version()` reads an archived version back: a single file
+byte-equal, a container rebuilt from its recipe — every entry byte-equal, `mimetype` first and stored
+for ODF — content-equal rather than byte-equal (a signature inside does not survive packing).
+
+The user's case, measured by the test: four versions of an ODT carrying 1 MB of images take **4.00 MB**
+side by side and **2.00 MB** packed — the latest as it is, and a 1.00 MB archive holding the picture
+once for three versions.
+
+Per document the archive is written, **read back from the store and checked entry by entry**, only then
+are its versions marked, in one transaction, and only then are the loose blobs and the previous
+archive deleted; a blob the latest version still uses (a revert) never is. Anything failing leaves the
+document as it was, reported under `skipped`. A container is unpacked only if its entries have safe
+names (`../outside.xml` is archived whole, never unpacked onto a disk), none is encrypted, and its
+rebuild reads back entry for entry.
+
+`RevisionArchive` — the files-and-processes half: `tar` and the `zstd` command (`-9 --long=27`, and
+`--long=27` to read), the explode, the rebuild and its proof. `ext-zstd` can take the command's place
+later.
+
+### Changed
+
+`Library::suggested_catalog()` accepts LibreOffice's formats (odt, ods, odp, odg), EPUB, PowerPoint when
+`finfo` names it, and `application/zstd` — the archive is stored like any blob. The first test of an ODT
+found it refused. SVG stays refused, deliberately: see "The MIME catalogue".
+
+`tests/ArchiveTest.php` (28), including a store handing back a valid archive with other contents —
+zstd's own checksum passes, only the entry-by-entry check refuses it.
+
+## [0.9.0] — 2026-09-26
+
+### Added
+
+**`Library::relink()`** — the sources follow a moved document. In every Markdown document of the tree,
+each relative link or image destination (inline, `<angle-bracketed>`, or a `[label]: dest` definition)
+that names a former path is rewritten to where the document is now, and the document saved as a new
+version: `author_c` from the options, a `note_c` saying what changed, the version it read as its
+parent. The aliases stay. `dry_run` reports without saving; a second run finds nothing.
+
+The rewrite is textual — CommonMark gives a link's URL and its block's lines, not its column — and then
+**proven against the parser**: the new source's destinations must be the old ones with exactly the
+planned replacements, and its HTML, every `href`/`src` blanked, the old one's. A document failing
+either is skipped and reported, never saved. A code span over two lines shows why both are needed: the
+destinations check passes (the parser never saw a link in the span), the HTML check refuses it.
+
+`Library::moved_href()` — the rule both `publish()` and `relink()` apply, now written once;
+`Path::resolve_link()` and `Path::link_to()` — the relative-path arithmetic it rests on, moved out of
+`Projection`. `MarkdownLinks` — destinations by the parser, the proposed textual rewrite.
+
+`tests/RelinkTest.php` (27), including a store that saves a concurrent version at the moment `relink()`
+reads the document: relink's version is then divergent — flagged, not silently on top. The
+existing suites, `PublishMovedLinksTest` among them, pass unchanged.
+
+
+
+### Changed
+
+**A published link follows a moved document.** `move()` keeps the former path as an alias, but
+`publish()` only swapped `.md` for `.html`: a page still linking the old name was published pointing
+at a page that no longer existed. A relative link that names a former path — and no live document —
+is now rewritten to where the document is, relative to the page it is on, fragment and query kept,
+each segment URL-encoded. A live document at the old path wins over the alias; a link whose document
+was removed since is left as written; absolute URLs and links climbing out of the tree are not
+followed. Found writing the README's Cookbook.
+
+`tests/PublishMovedLinksTest.php` (12): moves within a folder, across folders, twice, to a name with a
+space, a removed target, a live document back at the old path; six of its checks fail against 0.7.4.
+
+### Documentation
+
+The README's status and requirements said 0.1.0, PHP 7.4 and `italix/storage ^2.0`; they now say what
+`composer.json` does, and list each optional dependency with the piece that needs it. The Cookbook
+shows the moved link (`tests/CookbookTest.php`, 38).
+
+## [0.7.4] — 2026-09-26
+
+### Changed
+
+`PdfPageSplitter`'s own variables say what they hold: a page number is an index (`$page_i`, and a
+range's `$first_i`/`$last_i`), `$pages_n` stays the count of pages. Internal only — no behaviour or
+signature changes; the file is byte-identical to 0.7.3's once the three names are substituted back.
+
+## [0.7.3] — 2026-09-26
+
+### Changed
+
+Accepts `italix/converters` 0.7 as well (`^0.5 || ^0.6 || ^0.7`): nothing here reads the renamed
+options, so 0.7.0's renames do not touch this library.
+
+
+
+### Fixed
+
+**`HtmlToPdfConverter` and `DoclingConverter` read driver-scoped values.** Both read their options
+unscoped, so `COLORSPACE`, `OPTION_OCR` or `OPTION_IMAGE_MODE` set for them alone
+(`->with(DoclingConverter::OPTION_OCR, false, DoclingConverter::class)`) were never seen: a CMYK
+request scoped to `HtmlToPdfConverter` rendered an RGB PDF instead of being refused, and Docling ran
+with OCR on. Every read now names the driver (`static::class`) — the same fix `italix/media` 2.2.1
+made to its two older drivers.
+
+`tests/DoclingOptionsTest.php` (8) checks what reaches Docling's command line through a stand-in
+executable the test writes itself, so it runs on every host, Docling installed or not;
+`tests/HtmlToPdfConverterTest.php` (+2). The four checks that expect a scoped value to be read fail
+against 0.7.1.
+
+## [0.7.1] — 2026-09-26
+
+### Changed
+
+Accepts `italix/converters` 0.6 as well (`^0.5 || ^0.6`): 0.6.0 only adds (grids, `Spans`, an optional
+locator on `ConvertedDocument`), and for a 0.x version `^0.5` alone would refuse it. Nothing here uses
+the new pieces yet — `PdfPageSplitter` setting a page-range locator is the obvious next step.
+
 ## [0.7.0] — 2026-09-03
 
 ### Added
@@ -56,7 +332,7 @@ trivial one-paragraph PDF. A deployment that wants predictable first-request lat
 pre-warm that cache itself.
 
 **OCR is on by default even for born-digital PDFs with a real text layer, and dominates wall-clock
-time** — measured against two real Fabrick API-docs PDFs, not synthetic fixtures: a 5-page PDF with a
+time** — measured against two real API-docs PDFs from a payment provider, not synthetic fixtures: a 5-page PDF with a
 handful of embedded screenshots took 400.35s end-to-end, CPU-only (no GPU on the box this was measured
 on). The new `DoclingConverter::OPTION_OCR` generic option (`ConversionOptions::none()->with(...,
 false)`) skips it — the one lever that turns minutes into seconds for a PDF that already has real
@@ -71,7 +347,7 @@ claims support for a much longer list (xlsx, html, images, odt/odp/ods, …) tha
 yet declare, on the same "verified before claimed" basis as everything else in this changelog.
 
 **Embedded images turned out to be the bigger cost, on real documents — worse than OCR.** Discovered
-running a real 23-page Fabrick onboarding guide (45 UI screenshots) end to end: 1010.94s and an
+running a real 23-page onboarding guide (45 UI screenshots) end to end: 1010.94s and an
 **11.3MB** Markdown file, 99.97% of which (11,281,501 of 11,285,187 bytes) was base64 image data
 against under 4KB of real prose. `image-export-mode`'s default (`embedded`) is doing exactly what it
 says; it is simply the wrong default for feeding a chunker. `DoclingConverter::OPTION_IMAGE_MODE`

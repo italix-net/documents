@@ -148,6 +148,65 @@ final class Path
         return $out;
     }
 
+    /**
+     * A relative link, as written on a page in <folder_c>, as a tree path — `.`
+     * and `..` resolved. Null when it climbs out of the tree, starts at the
+     * root (`/`), or is empty (a bare fragment). Not checked: the result is a
+     * candidate to look up, and `is_clean()` says whether it can be one.
+     */
+    public static function resolve_link(?string $folder_c, string $link_c): ?string
+    {
+        if ($link_c === '' || $link_c[0] === '/') {
+            return null;
+        }
+
+        $segments = $folder_c === null ? [] : explode('/', $folder_c);
+
+        foreach (explode('/', $link_c) as $segment) {
+            if ($segment === '' || $segment === '.') {
+                continue;
+            }
+            if ($segment === '..') {
+                if ($segments === []) {
+                    return null;
+                }
+                array_pop($segments);
+
+                continue;
+            }
+            $segments[] = $segment;
+        }
+
+        return $segments === [] ? null : implode('/', $segments);
+    }
+
+    /**
+     * The relative link from a page in <folder_c> to the tree path <target_c>,
+     * each segment URL-encoded — the inverse of resolve_link().
+     */
+    public static function link_to(?string $folder_c, string $target_c): string
+    {
+        $from = $folder_c === null ? [] : explode('/', $folder_c);
+        $to   = explode('/', $target_c);
+
+        while ($from !== [] && count($to) > 1 && $from[0] === $to[0]) {
+            array_shift($from);
+            array_shift($to);
+        }
+
+        return str_repeat('../', count($from)) . implode('/', array_map('rawurlencode', $to));
+    }
+
+    /**
+     * The document whose bundle folder holds <path_c> — the path before its
+     * first folder named `*.assets` — or null when no folder of it is one.
+     * `notes.md.assets/img/pump.png` belongs to `notes.md`.
+     */
+    public static function assets_owner_of(string $path_c): ?string
+    {
+        return preg_match('~^((?:[^/]+/)*?[^/]+)\.assets/~', $path_c, $m) === 1 ? $m[1] : null;
+    }
+
     private static function assert_segment(string $segment, string $path_c): void
     {
         if ($segment === '') {

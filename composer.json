@@ -3,7 +3,7 @@
     "description": "A versioned tree of documents with human names, projected onto a real directory you can edit with any tool",
     "type": "library",
     "license": "MPL-2.0",
-    "version": "0.7.0",
+    "version": "0.16.0",
     "keywords": [
         "documents",
         "versioning",
@@ -24,15 +24,19 @@
         "ext-mbstring": "*",
         "ext-json": "*",
         "italix/storage": "^3.0",
-        "italix/converters": "^0.5"
+        "italix/converters": "^0.5 || ^0.6 || ^0.7"
     },
     "suggest": {
         "league/commonmark": "Required by MarkdownRenderer; without it a tree still works, rendered as escaped text",
         "dompdf/dompdf": "Required by HtmlToPdfConverter; without it html->pdf routing reports unavailable",
         "docling (Python, not Composer)": "Required by DoclingConverter for pdf/docx/pptx->md; a ~6GB venv, not a PHP dependency — see DoclingConverter's own docblock",
-        "poppler-utils (system package, not Composer)": "Required by PdfPageSplitter (pdfseparate) and PdfMerger (pdfunite); without it, both report unavailable",
+        "poppler-utils (system package, not Composer)": "Required by PdfPageSplitter (pdfseparate), PdfMerger (pdfunite) and PdfToTextConverter (pdftotext); without it, they report unavailable",
         "ext-pdo": "Required: the tree, its history and its aliases live in a database",
-        "ext-zstd": "Phase 3 \u2014 packing old revisions into a solid per-document archive"
+        "ext-zip": "Required by Library::pack() to unpack and rebuild containers (ODF, OOXML, EPUB)",
+        "zstd and tar (system commands, not Composer)": "Required by Library::pack() and to read an archived version; without them pack() refuses and archived versions cannot be read",
+        "ext-zstd": "A future alternative to the zstd command",
+        "ext-dom": "Required by HtmlToMarkdownConverter and SingleFileImporter",
+        "italix/media": "Its GdImageConverter re-encodes a saved page's images as WebP in SingleFileImporter; without an image converter they are kept"
     },
     "require-dev": {
         "italix/testing": "^2.0",
@@ -48,7 +52,10 @@
         ]
     },
     "scripts": {
-        "test": "php tests/DocumentsTest.php"
+        "test": [
+            "php tests/DocumentsTest.php",
+            "php tests/MarkdownChunkerTest.php"
+        ]
     },
     "minimum-stability": "stable",
     "prefer-stable": true

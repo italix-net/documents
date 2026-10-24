@@ -22,6 +22,10 @@ namespace Italix\Documents;
  * directory that is still syncing, or a checkout that ran out of disk. Guessing
  * wrong destroys work, so `import` reports it and `documents:rm` is the only
  * thing that deletes.
+ *
+ * `ORPHAN_ASSETS` is a bundle's folder with no file beside it: its path is the
+ * folder's. Reported, never imported, never deleted — the rule for an absent
+ * file, for the same reason.
  */
 final class Change
 {
@@ -29,6 +33,7 @@ final class Change
     public const MODIFIED  = 'modified';
     public const UNCHANGED = 'unchanged';
     public const MISSING   = 'missing';
+    public const ORPHAN_ASSETS = 'orphan-assets';
 
     private string $kind_c;
     private string $path_c;
@@ -87,6 +92,7 @@ final class Change
             self::MODIFIED  => 'M',
             self::UNCHANGED => ' ',
             self::MISSING   => '!',
+            self::ORPHAN_ASSETS => '~',
         ][$this->kind_c] ?? '?';
 
         return $mark . ($this->would_diverge ? 'D' : ' ') . ' ' . $this->path_c;

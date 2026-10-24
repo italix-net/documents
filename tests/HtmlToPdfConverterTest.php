@@ -128,4 +128,18 @@ test('the end-to-end conversion is a real PDF', str_starts_with($final->bytes(),
 test('the reported format is the target, not an intermediate hop', $final->extension_code() === 'pdf');
 test('the intermediate HTML never leaks out — only the final PDF bytes do', !str_contains($final->bytes(), '<h1>'));
 
+// -----------------------------------------------------------------------------
+section('driver-scoped COLORSPACE: set for this driver it is read, set for another it is not');
+
+$scoped_refused = false;
+try {
+    $driver->convert('<p>irrelevant</p>', 'html', 'pdf', ConversionOptions::none()->with_colorspace(ConversionOptions::COLORSPACE_CMYK, HtmlToPdfConverter::class));
+} catch (UnsupportedOptionException $e) {
+    $scoped_refused = true;
+}
+test('CMYK scoped to HtmlToPdfConverter is read — and refused, dompdf being RGB only', $scoped_refused);
+
+$elsewhere = $driver->convert('<p>fine</p>', 'html', 'pdf', ConversionOptions::none()->with_colorspace(ConversionOptions::COLORSPACE_CMYK, 'Some\\OtherDriver'));
+test('CMYK scoped to another driver is not read: an RGB PDF comes back', str_starts_with($elsewhere->bytes(), '%PDF-'));
+
 exit(summary());

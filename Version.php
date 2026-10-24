@@ -36,6 +36,7 @@ final class Version
     private ?int $source_version_id;
     private ?string $archive_path_c;
     private string $insert_dt;
+    private ?string $assets_sha256_c;
 
     public function __construct(
         int $id,
@@ -50,7 +51,8 @@ final class Version
         bool $is_divergent = false,
         ?int $source_version_id = null,
         string $insert_dt = '',
-        ?string $archive_path_c = null
+        ?string $archive_path_c = null,
+        ?string $assets_sha256_c = null
     ) {
         $this->id                = $id;
         $this->node_id           = $node_id;
@@ -65,6 +67,7 @@ final class Version
         $this->source_version_id = $source_version_id;
         $this->archive_path_c    = $archive_path_c;
         $this->insert_dt         = $insert_dt;
+        $this->assets_sha256_c   = $assets_sha256_c;
     }
 
     /**
@@ -85,7 +88,8 @@ final class Version
             (bool) ($row['is_divergent'] ?? false),
             ($row['source_version_id'] ?? null) === null ? null : (int) $row['source_version_id'],
             (string) ($row['insert_dt'] ?? ''),
-            ($row['archive_path_c'] ?? null) === null ? null : (string) $row['archive_path_c']
+            ($row['archive_path_c'] ?? null) === null ? null : (string) $row['archive_path_c'],
+            ($row['assets_sha256_c'] ?? null) === null ? null : (string) $row['assets_sha256_c']
         );
     }
 
@@ -178,5 +182,20 @@ final class Version
     public function is_archived(): bool
     {
         return $this->archive_path_c !== null;
+    }
+
+    /**
+     * Null for a version without assets; for a bundle version, the sha256 of
+     * its assets' `name TAB sha256` lines, sorted by name — with sha256() of
+     * the main file, what makes two saves "the same version".
+     */
+    public function assets_sha256(): ?string
+    {
+        return $this->assets_sha256_c;
+    }
+
+    public function has_assets(): bool
+    {
+        return $this->assets_sha256_c !== null;
     }
 }
