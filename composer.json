@@ -1,6 +1,6 @@
 {
     "name": "italix/documents",
-    "description": "A versioned tree of documents with human names, projected onto a real directory you can edit with any tool",
+    "description": "A versioned tree of documents with human names, projected onto a real directory you can edit with any tool: every version kept, moves leave aliases, translations know when they fall behind",
     "type": "library",
     "license": "MPL-2.0",
     "version": "0.16.0",
